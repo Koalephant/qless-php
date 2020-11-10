@@ -1,19 +1,16 @@
 <?php
-
-
 namespace Qless\Tests\Workers;
 
-use Qless\Jobs\Reservers\OrderedReserver;
 use Qless\Queues\Queue;
 use Qless\Tests\QlessTestCase;
 use Qless\Tests\Stubs\JobHandler;
-use Qless\Workers\ForkingWorker;
+use Qless\Workers\ResourceLimitedWorkerInterface;
 
-class WorkerLimitTest extends QlessTestCase
+abstract class WorkerLimitTest extends QlessTestCase
 {
     public function testNumberJobs(): void
     {
-        $queue = $this->getQueue();
+        $queue = $this->getQueue(100);
         $worker = $this->getWorker();
         $worker->setMaximumNumberJobs(1);
         $worker->run();
@@ -23,7 +20,7 @@ class WorkerLimitTest extends QlessTestCase
 
     public function testTimeLimitWorker(): void
     {
-        $queue = $this->getQueue();
+        $queue = $this->getQueue(500);
         $worker = $this->getWorker();
         $worker->setTimeLimit(1);
         $worker->run();
@@ -33,7 +30,7 @@ class WorkerLimitTest extends QlessTestCase
 
     public function testMemoryLimitWorker(): void
     {
-        $queue = $this->getQueue();
+        $queue = $this->getQueue(100);
         $worker = $this->getWorker();
         $worker->setMemoryLimit(1);
         $worker->run();
@@ -42,21 +39,15 @@ class WorkerLimitTest extends QlessTestCase
     }
 
 
-    private function getQueue(): Queue
+    private function getQueue(int $size): Queue
     {
         $queue = new Queue('test-queue', $this->client);
-        for ($i = 0; $i < 100; $i++) {
+        for ($i = 0; $i < $size; $i++) {
             $queue->put(JobHandler::class, []);
         }
 
         return $queue;
     }
 
-    private function getWorker(): ForkingWorker
-    {
-        return new ForkingWorker(
-            new OrderedReserver($this->client->queues, ['test-queue']),
-            $this->client
-        );
-    }
+    abstract protected function getWorker(): ResourceLimitedWorkerInterface;
 }
