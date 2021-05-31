@@ -7,6 +7,7 @@ use Qless\Jobs\BaseJob;
 use Qless\Jobs\Reservers\DefaultReserver;
 use Qless\PubSub\Manager;
 use Qless\Tests\QlessTestCase;
+use Qless\Tests\Support\BackgroundProcessTrait;
 use Qless\Workers\SimpleWorker;
 
 /**
@@ -16,6 +17,8 @@ use Qless\Workers\SimpleWorker;
  */
 class ManagerTest extends QlessTestCase
 {
+
+    use BackgroundProcessTrait;
 
     public const QUEUE_NAME = 'pubsub-manager-test';
 
@@ -30,16 +33,6 @@ class ManagerTest extends QlessTestCase
         Manager::EVENT_TRACK,
         Manager::EVENT_UNTRACK
     ];
-
-    /**
-     * @var array
-     */
-    protected $pipes;
-
-    /**
-     * @var false|resource
-     */
-    protected $process;
 
     /**
      * @test
@@ -116,49 +109,6 @@ class ManagerTest extends QlessTestCase
         $this->shouldReceivedExpectedMessageType(Manager::EVENT_UNTRACK);
     }
 
-    protected function runBackgroundTask(string $command, array $arguments = [], ?string $errorLog = null): void
-    {
-
-        $this->process = proc_open(
-            escapeshellcmd($command) . ' ' . implode(' ', array_map('escapeshellarg', $arguments)),
-            [
-                ['pipe', 'r'],
-                ['pipe', 'w'],
-                $errorLog ? ['file', $errorLog, 'a'] : ['pipe', 'w']
-            ],
-            $this->pipes,
-            getcwd()
-        );
-        stream_set_blocking($this->pipes[1], false);
-        if (! $errorLog) {
-            stream_set_blocking($this->pipes[2], false);
-        }
-    }
-
-    protected function getBackgroundStdOut(): string
-    {
-        if (is_resource($this->pipes[1]) && get_resource_type($this->pipes[1]) !== 'Unknown') {
-            stream_set_blocking($this->pipes[1], true);
-        }
-
-        return stream_get_contents($this->pipes[1]);
-    }
-
-    protected function stopBackgroundTask(): void
-    {
-        foreach ($this->pipes as $type => &$pipe) {
-            if (! is_resource($pipe)) {
-                continue;
-            }
-            fclose($pipe);
-        }
-        unset($pipe);
-
-        proc_terminate($this->process);
-        $this->process = null;
-        $this->pipes = null;
-    }
-
     protected function shouldReceivedExpectedMessageType(string $type): void
     {
         $client = $this->client;
@@ -173,9 +123,9 @@ class ManagerTest extends QlessTestCase
 
         $jid = $queue->put(DummyPubSubJob::class, compact('type'));
 
-        $this->runBackgroundTask(
-            'php',
-            [__DIR__ . '/../pubsubmanager-jobactions.php', $type, $jid],
+        $this->runBackgroundScript(
+            __DIR__ . '/../pubsubmanager-jobactions.php',
+            [$type, $jid],
             __DIR__ . '/../pubsubmanager-jobactions.log'
         );
 
