@@ -190,7 +190,8 @@ class Collection implements ArrayAccess
      *
      * @throws QlessException
      */
-    public function offsetGet($jid): mixed
+    #[\ReturnTypeWillChange]
+    public function offsetGet($jid)
     {
         $data = $this->client->get($jid);
 

@@ -544,7 +544,8 @@ class BaseJob extends AbstractJob implements \ArrayAccess
         return isset($this->data[$offset]);
     }
 
-    public function offsetGet($offset): mixed
+    #[\ReturnTypeWillChange]
+    public function offsetGet($offset)
     {
         return $this->data[$offset];
     }
